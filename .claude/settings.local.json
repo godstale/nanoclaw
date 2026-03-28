@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git remote:*)",
+      "Bash(git push:*)",
+      "Bash(bash setup.sh 2>&1)",
+      "Bash(curl -fsSL onecli.sh/install)",
+      "Bash(sh)",
+      "Bash(docker info:*)",
+      "Bash(start \"\" \"C:/Program Files/Docker/Docker/Docker Desktop.exe\")",
+      "Bash(netstat -ano)",
+      "Bash(powershell.exe -Command \"Get-NetTCPConnection -LocalPort 5432 -ErrorAction SilentlyContinue | Select-Object LocalAddress,LocalPort,State,OwningProcess | Format-Table\" 2>&1)",
+      "Bash(cmd.exe /c \"netstat -ano | findstr :5432\")",
+      "Bash(cmd.exe /c \"netsh int ipv4 show excludedportrange protocol=tcp\")",
+      "Bash(docker compose:*)",
+      "Bash(curl:*)",
+      "Bash(mkdir -p ~/.local/bin)",
+      "Bash(unzip -o /tmp/onecli.zip -d /tmp/onecli-extract/)",
+      "Read(//tmp/**)",
+      "Bash(cp /tmp/onecli-extract/onecli.exe ~/.local/bin/onecli)",
+      "Bash(chmod +x ~/.local/bin/onecli)",
+      "Bash(export PATH=\"$HOME/.local/bin:$PATH\")",
+      "Bash(onecli version:*)",
+      "Bash(npx tsx:*)",
+      "Bash(docker build:*)",
+      "Bash(onecli secrets:*)"
+    ]
+  }
+}
