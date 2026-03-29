@@ -226,4 +226,44 @@ describe('container-runner timeout behavior', () => {
     expect(result.status).toBe('success');
     expect(result.newSessionId).toBe('session-456');
   });
+
+  it('correctly handles multi-byte characters split across chunks', async () => {
+    const onOutput = vi.fn(async () => {});
+    const resultPromise = runContainerAgent(
+      testGroup,
+      testInput,
+      () => {},
+      onOutput,
+    );
+
+    // Korean text: "안녕" (UTF-8: [EC 95 88, EB 85 95])
+    const koreanText = '안녕';
+    const jsonStr = JSON.stringify({
+      status: 'success',
+      result: koreanText,
+    });
+    const fullPayload = `${OUTPUT_START_MARKER}\n${jsonStr}\n${OUTPUT_END_MARKER}\n`;
+    const fullBuffer = Buffer.from(fullPayload, 'utf-8');
+
+    // Split the buffer in the middle of a 3-byte character
+    // "안" is EC 95 88. Let's find where it is in the JSON.
+    const splitPoint = fullBuffer.indexOf(0x95); // Split inside "안"
+
+    const chunk1 = fullBuffer.subarray(0, splitPoint);
+    const chunk2 = fullBuffer.subarray(splitPoint);
+
+    fakeProc.stdout.push(chunk1);
+    await vi.advanceTimersByTimeAsync(10);
+    fakeProc.stdout.push(chunk2);
+    await vi.advanceTimersByTimeAsync(10);
+
+    fakeProc.emit('close', 0);
+    await vi.advanceTimersByTimeAsync(10);
+
+    const result = await resultPromise;
+    expect(result.status).toBe('success');
+    expect(onOutput).toHaveBeenCalledWith(
+      expect.objectContaining({ result: koreanText }),
+    );
+  });
 });

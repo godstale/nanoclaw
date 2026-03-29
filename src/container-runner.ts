@@ -130,6 +130,7 @@ function buildVolumeMounts(
       settingsFile,
       JSON.stringify(
         {
+          model: 'sonnet',
           env: {
             // Enable agent swarms (subagent orchestration)
             // https://code.claude.com/docs/en/agent-teams#orchestrate-teams-of-claude-code-sessions
@@ -340,11 +341,13 @@ export async function runContainerAgent(
     container.stdin.end();
 
     // Streaming output: parse OUTPUT_START/END marker pairs as they arrive
-    let parseBuffer = '';
+    let parseBuffer = Buffer.alloc(0);
+    const START_MARKER_BUF = Buffer.from(OUTPUT_START_MARKER);
+    const END_MARKER_BUF = Buffer.from(OUTPUT_END_MARKER);
     let newSessionId: string | undefined;
     let outputChain = Promise.resolve();
 
-    container.stdout.on('data', (data) => {
+    container.stdout.on('data', (data: Buffer) => {
       const chunk = data.toString();
 
       // Always accumulate for logging
@@ -364,16 +367,18 @@ export async function runContainerAgent(
 
       // Stream-parse for output markers
       if (onOutput) {
-        parseBuffer += chunk;
+        parseBuffer = Buffer.concat([parseBuffer, data]);
         let startIdx: number;
-        while ((startIdx = parseBuffer.indexOf(OUTPUT_START_MARKER)) !== -1) {
-          const endIdx = parseBuffer.indexOf(OUTPUT_END_MARKER, startIdx);
+        while ((startIdx = parseBuffer.indexOf(START_MARKER_BUF)) !== -1) {
+          const endIdx = parseBuffer.indexOf(END_MARKER_BUF, startIdx);
           if (endIdx === -1) break; // Incomplete pair, wait for more data
 
-          const jsonStr = parseBuffer
-            .slice(startIdx + OUTPUT_START_MARKER.length, endIdx)
-            .trim();
-          parseBuffer = parseBuffer.slice(endIdx + OUTPUT_END_MARKER.length);
+          const jsonBuf = parseBuffer.subarray(
+            startIdx + START_MARKER_BUF.length,
+            endIdx,
+          );
+          const jsonStr = jsonBuf.toString('utf-8').trim();
+          parseBuffer = parseBuffer.subarray(endIdx + END_MARKER_BUF.length);
 
           try {
             const parsed: ContainerOutput = JSON.parse(jsonStr);
@@ -388,7 +393,7 @@ export async function runContainerAgent(
             outputChain = outputChain.then(() => onOutput(parsed));
           } catch (err) {
             logger.warn(
-              { group: group.name, error: err },
+              { group: group.name, error: err, jsonStr },
               'Failed to parse streamed output chunk',
             );
           }

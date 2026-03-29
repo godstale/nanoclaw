@@ -280,6 +280,7 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
   await channel.setTyping?.(chatJid, true);
   let hadError = false;
   let outputSentToUser = false;
+  const lastBotTsBefore = getLastBotMessageTimestamp(chatJid, ASSISTANT_NAME) || '';
 
   const output = await runAgent(group, prompt, chatJid, async (result) => {
     // Streaming output callback — called for each agent result
@@ -295,9 +296,10 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
         await channel.sendMessage(chatJid, text);
         outputSentToUser = true;
       }
-      // Only reset idle timer on actual results, not session-update markers (result: null)
-      resetIdleTimer();
     }
+
+    // Reset idle timer on any activity (including tool result markers with result: null)
+    resetIdleTimer();
 
     if (result.status === 'success') {
       queue.notifyIdle(chatJid);
@@ -310,6 +312,15 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
 
   await channel.setTyping?.(chatJid, false);
   if (idleTimer) clearTimeout(idleTimer);
+
+  // If no output was sent via streaming, check if any message was sent via tools (IPC)
+  if (!outputSentToUser) {
+    const lastBotTsAfter = getLastBotMessageTimestamp(chatJid, ASSISTANT_NAME) || '';
+    if (lastBotTsAfter > lastBotTsBefore) {
+      logger.info({ group: group.name }, 'Detected message sent via tools, marking as output sent');
+      outputSentToUser = true;
+    }
+  }
 
   if (output === 'error' || hadError) {
     // If we already sent output to the user, don't roll back the cursor —
